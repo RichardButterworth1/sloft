@@ -13,7 +13,7 @@ def add_to_cadence():
     first_name = data.get("first_name")
     last_name = data.get("last_name")
     email = data.get("email")
-    cadence_name = data.get("cadence_name")
+    cadence_name = rjb0001api
     memo = data.get("custom_email_template")
 
     headers = {
