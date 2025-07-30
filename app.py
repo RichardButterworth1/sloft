@@ -12,7 +12,7 @@ def add_to_cadence():
         first_name = data.get("first_name")
         last_name = data.get("last_name")
         email = data.get("email")
-        memo = data.get("custom_email_template")
+        memo = data.get("custom_field_8014")
         cadence_name = data.get("cadence_name")
         cadence_id = data.get("cadence_id")
 
@@ -41,7 +41,7 @@ def add_to_cadence():
             person_id = people_data[0]["id"]
             update_resp = requests.put(
                 f"https://api.salesloft.com/v2/people/{person_id}.json",
-                json={"custom_fields": {"custom_email_template": memo}},
+                json={"custom_fields": {"custom_field_8014": memo}},
                 headers=headers
             )
             if update_resp.status_code >= 400:
@@ -53,7 +53,7 @@ def add_to_cadence():
                     "first_name": first_name,
                     "last_name": last_name,
                     "email_address": email,
-                    "custom_fields": {"custom_email_template": memo}
+                    "custom_fields": {"custom_field_8014": memo}
                 },
                 headers=headers
             )
