@@ -8,9 +8,8 @@ SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
 
 @app.route('/add-to-cadence', methods=['POST'])
 def add_to_cadence():
-data = request.json
+    data = request.json
 
-```
 first_name = data.get("first_name")
 last_name = data.get("last_name")
 email = data.get("email")
