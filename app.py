@@ -65,7 +65,7 @@ def add_to_cadence():
 
     cadence_resp = requests.get(
         "https://api.salesloft.com/v2/cadences.json",
-        params={"external_identifier": cadence_name},
+        params={"external_identifier": "rjb0001api"},
         headers=headers
     )
 
