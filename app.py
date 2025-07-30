@@ -13,7 +13,7 @@ def add_to_cadence():
     first_name = data.get("first_name")
     last_name = data.get("last_name")
     email = data.get("email")
-    cadence_name = rjb0001api
+    cadence_name = data.get("cadence_name")
     memo = data.get("custom_email_template")
 
     headers = {
@@ -65,7 +65,7 @@ def add_to_cadence():
 
     cadence_resp = requests.get(
         "https://api.salesloft.com/v2/cadences.json",
-        params={"external_identifier": "rjb0001api"},
+        params={"external_identifier": cadence_name},
         headers=headers
     )
 
