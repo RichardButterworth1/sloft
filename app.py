@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
 
-@app.route('/add-to-cadence', methods=\['POST'])
+@app.route('/add-to-cadence', methods=['POST'])
 def add\_to\_cadence():
 data = request.json
 
