@@ -5,7 +5,7 @@ import os
 app = Flask(__name__)
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
-CUSTOM_FIELD_ID = "custom_email_template"  # ID for 'custom email template'
+CUSTOM_FIELD_ID = "custom email template"  # ID for 'custom email template'
 
 @app.route('/add-to-cadence', methods=['POST'])
 def add_to_cadence():
