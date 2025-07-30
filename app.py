@@ -39,8 +39,8 @@ def add_to_cadence():
 
         custom_fields_payload = {
             "custom email template": memo,
-            "Owner_CRM_ID": "Richard Butterworth",
-            "Account_CRM_ID": "5397792"
+            "Owner CRM ID": "Richard Butterworth",
+            "Account CRM ID": "5397792"
         }
 
         if people_data:
