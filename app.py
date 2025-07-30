@@ -16,6 +16,9 @@ def add_to_cadence():
         cadence_name = data.get("cadence_name")
         cadence_id = data.get("cadence_id")
 
+        if not all([first_name, last_name, email, memo]):
+            return jsonify({"success": False, "message": "Missing required fields."}), 400
+
         headers = {
             "Authorization": f"Bearer {SALESLOFT_API_KEY}",
             "Content-Type": "application/json"
@@ -23,22 +26,26 @@ def add_to_cadence():
 
         # Check if contact exists
         person_id = None
-        response = requests.get(
+        search_resp = requests.get(
             "https://api.salesloft.com/v2/people.json",
             params={"email_address": email},
             headers=headers
         )
-        if response.status_code >= 400:
-            return jsonify({"success": False, "message": "Failed to search for contact", "details": response.text}), 400
-        
-        result = response.json()
-        if result.get("data"):
-            person_id = result["data"][0]["id"]
-            requests.put(
+
+        if search_resp.status_code >= 400:
+            return jsonify({"success": False, "message": "Failed to search for contact", "details": search_resp.text}), 400
+
+        people_data = search_resp.json().get("data", [])
+
+        if people_data:
+            person_id = people_data[0]["id"]
+            update_resp = requests.put(
                 f"https://api.salesloft.com/v2/people/{person_id}.json",
                 json={"custom_fields": {"custom email text": memo}},
                 headers=headers
             )
+            if update_resp.status_code >= 400:
+                return jsonify({"success": False, "message": "Failed to update contact", "details": update_resp.text}), 400
         else:
             create_resp = requests.post(
                 "https://api.salesloft.com/v2/people.json",
@@ -58,7 +65,7 @@ def add_to_cadence():
             if not person_id:
                 return jsonify({"success": False, "message": "Contact created but no ID returned", "details": created}), 500
 
-        # Look up cadence ID if not provided
+        # Resolve cadence_id if only name was provided
         if not cadence_id:
             if not cadence_name:
                 return jsonify({"success": False, "message": "Must provide cadence_id or cadence_name"}), 400
@@ -80,19 +87,34 @@ def add_to_cadence():
         # Enroll contact into cadence
         enroll_resp = requests.post(
             "https://api.salesloft.com/v2/cadence_memberships.json",
-            json={"cadence_membership": {"person_id": person_id, "cadence_id": cadence_id}},
+            json={
+                "cadence_membership": {
+                    "person_id": person_id,
+                    "cadence_id": cadence_id,
+                    "state": "active"
+                }
+            },
             headers=headers
         )
+
         if enroll_resp.status_code >= 400:
-            return jsonify({"success": False, "message": "Failed to enroll contact in cadence", "details": enroll_resp.text}), 400
+            return jsonify({
+                "success": False,
+                "message": "Failed to enroll contact in cadence",
+                "details": enroll_resp.text
+            }), 400
 
         return jsonify({
             "success": True,
-            "message": f"{first_name} {last_name} successfully added to cadence ID '{cadence_id}'."
+            "message": f"{first_name} {last_name} successfully added to cadence ID {cadence_id}."
         })
 
     except Exception as e:
-        return jsonify({"success": False, "message": "Unhandled server error", "error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "message": "Unhandled server error",
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
