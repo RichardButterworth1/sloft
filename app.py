@@ -66,7 +66,6 @@ return jsonify({
     "success": True,
     "message": f"{first_name} {last_name} successfully added to cadence '{cadence_name}'."
 })
-```
 
-if **name** == '**main**':
+if __name__ == '__main__':
 app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
