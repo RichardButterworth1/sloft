@@ -4,87 +4,109 @@ import os
 
 app = Flask(__name__)
 
-SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
+SALESLOFT\_API\_KEY = os.getenv("SALESLOFT\_API\_KEY")
 
-@app.route('/add-to-cadence', methods=['POST'])
-def add_to_cadence():
-    data = request.json
+@app.route('/add-to-cadence', methods=\['POST'])
+def add\_to\_cadence():
+data = request.json
 
-    first_name = data.get("first_name")
-    last_name = data.get("last_name")
-    email = data.get("email")
-    cadence_name = data.get("cadence_name")
-    memo = data.get("custom_email_template")
+```
+first_name = data.get("first_name")
+last_name = data.get("last_name")
+email = data.get("email")
+cadence_name = data.get("cadence_name")
+memo = data.get("custom_email_template")
 
-    # 1. Check if contact exists
-    response = requests.get(
-        "https://api.salesloft.com/v2/people.json",
-        params={"email_address": email},
-        headers={"Authorization": f"Bearer {SALESLOFT_API_KEY}"}
+headers = {
+    "Authorization": f"Bearer {SALESLOFT_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+# 1. Check if contact exists
+response = requests.get(
+    "https://api.salesloft.com/v2/people.json",
+    params={"email_address": email},
+    headers=headers
+)
+person_data = response.json()
+
+if person_data["data"]:
+    person_id = person_data["data"][0]["id"]
+    update_resp = requests.put(
+        f"https://api.salesloft.com/v2/people/{person_id}.json",
+        json={"custom_fields": {"custom email text": memo}},
+        headers=headers
     )
-    person_data = response.json()
+else:
+    create_resp = requests.post(
+        "https://api.salesloft.com/v2/people.json",
+        json={
+            "first_name": first_name,
+            "last_name": last_name,
+            "email_address": email,
+            "custom_fields": {"custom email text": memo}
+        },
+        headers=headers
+    )
 
-    if person_data["data"]:
-        person_id = person_data["data"][0]["id"]
-        requests.put(
-            f"https://api.salesloft.com/v2/people/{person_id}.json",
-            json={"custom_fields": {"memo": memo}},
-            headers={"Authorization": f"Bearer {SALESLOFT_API_KEY}"}
-        )
-    else:
-        create_resp = requests.post(
-            "https://api.salesloft.com/v2/people.json",
-            json={
-                "first_name": first_name,
-                "last_name": last_name,
-                "email_address": email,
-                "custom_fields": {"custome email text": memo}
-            },
-            headers={
-                "Authorization": f"Bearer {SALESLOFT_API_KEY}"
-                "Content-Type": "application/json"
-            }
-        )
+    if create_resp.status_code >= 400:
+        return jsonify({
+            "success": False,
+            "message": "Failed to create contact",
+            "salesloft_response": create_resp.json()
+        }), 400
 
-        # Check if the POST was successful
-        if create_resp.status_code >= 400:
-            return jsonify({
-                "success": False,
-                "message": f"Failed to create contact",
-                "salesloft_response": create_resp.json()
-            }), 400
+    person_id = create_resp.json().get("data", {}).get("id")
 
-# Extract person ID
-person_id = create_resp.json().get("data", {}).get("id")
+    if not person_id:
+        return jsonify({
+            "success": False,
+            "message": "No person ID returned after creation",
+            "salesloft_response": create_resp.json()
+        }), 400
 
-if not person_id:
+# Get cadence ID by external identifier
+cadence_resp = requests.get(
+    "https://api.salesloft.com/v2/cadences.json",
+    params={"external_identifier": cadence_name},
+    headers=headers
+)
+
+if cadence_resp.status_code >= 400:
     return jsonify({
         "success": False,
-        "message": "No person ID returned after creation",
-        "salesloft_response": create_resp.json()
+        "message": "Failed to fetch cadence",
+        "salesloft_response": cadence_resp.json()
     }), 400
 
-
-        person_id = create_resp.json()["data"]["id"]
-
-    cadence_resp = requests.get(
-        "https://api.salesloft.com/v2/cadences.json",
-        params={"external_identifier": "rjb0001api"},
-        headers={"Authorization": f"Bearer {SALESLOFT_API_KEY}"}
-    )
-    cadence_id = cadence_resp.json()["data"][0]["id"]
-
-    requests.post(
-        "https://api.salesloft.com/v2/cadence_memberships.json",
-        json={"cadence_membership": {"person_id": person_id, "cadence_id": cadence_id}},
-        headers={"Authorization": f"Bearer {SALESLOFT_API_KEY}"}
-    )
-
+cadence_data = cadence_resp.json().get("data", [])
+if not cadence_data:
     return jsonify({
-        "success": True,
-        "message": f"{first_name} {last_name} successfully added to cadence '{cadence_name}'."
-    })
+        "success": False,
+        "message": f"Cadence '{cadence_name}' not found"
+    }), 404
 
+cadence_id = cadence_data[0]["id"]
+
+# Add contact to cadence
+enroll_resp = requests.post(
+    "https://api.salesloft.com/v2/cadence_memberships.json",
+    json={"cadence_membership": {"person_id": person_id, "cadence_id": cadence_id}},
+    headers=headers
+)
+
+if enroll_resp.status_code >= 400:
+    return jsonify({
+        "success": False,
+        "message": "Failed to enroll contact in cadence",
+        "salesloft_response": enroll_resp.json()
+    }), 400
+
+return jsonify({
+    "success": True,
+    "message": f"{first_name} {last_name} successfully added to cadence '{cadence_name}'."
+})
+```
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
+app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
