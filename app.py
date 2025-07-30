@@ -8,14 +8,13 @@ SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
 
 @app.route('/add-to-cadence', methods=['POST'])
 def add_to_cadence():
-data = request.json
+    data = request.json
 
-```
-first_name = data.get("first_name")
-last_name = data.get("last_name")
-email = data.get("email")
-cadence_name = data.get("cadence_name")
-memo = data.get("custom_email_template")
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
+    email = data.get("email")
+    cadence_name = data.get("cadence_name")
+    memo = data.get("custom_email_template")
 
 # 1. Check if contact exists
 response = requests.get(
