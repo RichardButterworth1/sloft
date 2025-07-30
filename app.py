@@ -13,14 +13,17 @@ def add_to_cadence():
     first_name = data.get("first_name")
     last_name = data.get("last_name")
     email = data.get("email")
-    cadence_name = data.get("cadence_name")
     memo = data.get("custom_email_template")
+
+    cadence_name = data.get("cadence_name")
+    cadence_id = data.get("cadence_id")  # Optional direct ID
 
     headers = {
         "Authorization": f"Bearer {SALESLOFT_API_KEY}",
         "Content-Type": "application/json"
     }
 
+    # Check if person exists
     response = requests.get(
         "https://api.salesloft.com/v2/people.json",
         params={"email_address": email},
@@ -46,7 +49,6 @@ def add_to_cadence():
             },
             headers=headers
         )
-
         if create_resp.status_code >= 400:
             return jsonify({
                 "success": False,
@@ -55,7 +57,6 @@ def add_to_cadence():
             }), 400
 
         person_id = create_resp.json().get("data", {}).get("id")
-
         if not person_id:
             return jsonify({
                 "success": False,
@@ -63,28 +64,36 @@ def add_to_cadence():
                 "salesloft_response": create_resp.json()
             }), 400
 
-    cadence_resp = requests.get(
-        "https://api.salesloft.com/v2/cadences.json",
-        params={"external_identifier": cadence_name},
-        headers=headers
-    )
+    # Lookup cadence if only cadence_name was provided
+    if not cadence_id:
+        if not cadence_name:
+            return jsonify({
+                "success": False,
+                "message": "Must provide either cadence_id or cadence_name"
+            }), 400
 
-    if cadence_resp.status_code >= 400:
-        return jsonify({
-            "success": False,
-            "message": "Failed to fetch cadence",
-            "salesloft_response": cadence_resp.json()
-        }), 400
+        cadence_resp = requests.get(
+            "https://api.salesloft.com/v2/cadences.json",
+            params={"external_identifier": cadence_name},
+            headers=headers
+        )
+        if cadence_resp.status_code >= 400:
+            return jsonify({
+                "success": False,
+                "message": "Failed to fetch cadence",
+                "salesloft_response": cadence_resp.json()
+            }), 400
 
-    cadence_data = cadence_resp.json().get("data", [])
-    if not cadence_data:
-        return jsonify({
-            "success": False,
-            "message": f"Cadence '{cadence_name}' not found"
-        }), 404
+        cadence_data = cadence_resp.json().get("data", [])
+        if not cadence_data:
+            return jsonify({
+                "success": False,
+                "message": f"Cadence '{cadence_name}' not found"
+            }), 404
 
-    cadence_id = cadence_data[0]["id"]
+        cadence_id = cadence_data[0]["id"]
 
+    # Enroll person in cadence
     enroll_resp = requests.post(
         "https://api.salesloft.com/v2/cadence_memberships.json",
         json={"cadence_membership": {"person_id": person_id, "cadence_id": cadence_id}},
@@ -100,9 +109,8 @@ def add_to_cadence():
 
     return jsonify({
         "success": True,
-        "message": f"{first_name} {last_name} successfully added to cadence '{cadence_name}'."
+        "message": f"{first_name} {last_name} successfully added to cadence ID '{cadence_id}'."
     })
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
