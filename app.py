@@ -63,7 +63,7 @@ def add_to_cadence():
         f"https://api.salesloft.com/v2/people/{person_id}.json",
         json={
             "custom_fields": {
-                "8014": memo
+                "custom email template": memo
             }
         },
         headers=HEADERS
