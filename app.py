@@ -3,124 +3,102 @@ import requests
 import os
 
 app = Flask(__name__)
+
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
+HEADERS = {
+    "Authorization": f"Bearer {SALESLOFT_API_KEY}",
+    "Content-Type": "application/json"
+}
 
-@app.route('/add-to-cadence', methods=['POST'])
+@app.route("/add-to-cadence", methods=["POST"])
 def add_to_cadence():
-    try:
-        data = request.json
-        first_name = data.get("first_name")
-        last_name = data.get("last_name")
-        email = data.get("email")
-        memo = data.get("custom_email_template")  # FIXED: match OpenAPI field name
-        cadence_name = data.get("cadence_name")
-        cadence_id = data.get("cadence_id")
+    data = request.json
 
-        if not all([first_name, last_name, email, memo]):
-            return jsonify({"success": False, "message": "Missing required fields."}), 400
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
+    email = data.get("email")
+    memo = data.get("custom_email_template")
+    cadence_id = data.get("cadence_id")
 
-        headers = {
-            "Authorization": f"Bearer {SALESLOFT_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        # Check if contact exists
-        person_id = None
-        search_resp = requests.get(
-            "https://api.salesloft.com/v2/people.json",
-            params={"email_address": email},
-            headers=headers
-        )
-
-        if search_resp.status_code >= 400:
-            return jsonify({"success": False, "message": "Failed to search for contact", "details": search_resp.text}), 400
-
-        people_data = search_resp.json().get("data", [])
-
-        custom_fields_payload = {
-            "custom email template": memo,
-            "Owner CRM ID": "ad9a474d-36c4-eb11-bacc-002248801824",
-            "Account CRM ID": "ac663391-cd49-eb11-bb23-000d3a219bd5"
-        }
-
-        if people_data:
-            person_id = people_data[0]["id"]
-            update_resp = requests.put(
-                f"https://api.salesloft.com/v2/people/{person_id}.json",
-                json={"custom_fields": custom_fields_payload},
-                headers=headers
-            )
-            if update_resp.status_code >= 400:
-                return jsonify({"success": False, "message": "Failed to update contact", "details": update_resp.text}), 400
-        else:
-            create_resp = requests.post(
-                "https://api.salesloft.com/v2/people.json",
-                json={
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "email_address": email,
-                    "custom_fields": custom_fields_payload
-                },
-                headers=headers
-            )
-            if create_resp.status_code >= 400:
-                return jsonify({"success": False, "message": "Failed to create contact", "details": create_resp.text}), 400
-
-            created = create_resp.json()
-            person_id = created.get("data", {}).get("id")
-            if not person_id:
-                return jsonify({"success": False, "message": "Contact created but no ID returned", "details": created}), 500
-
-        # Resolve cadence_id if only name was provided
-        if not cadence_id:
-            if not cadence_name:
-                return jsonify({"success": False, "message": "Must provide cadence_id or cadence_name"}), 400
-
-            cadence_resp = requests.get(
-                "https://api.salesloft.com/v2/cadences.json",
-                params={"external_identifier": cadence_name},
-                headers=headers
-            )
-            if cadence_resp.status_code >= 400:
-                return jsonify({"success": False, "message": "Failed to retrieve cadence", "details": cadence_resp.text}), 400
-
-            cadence_data = cadence_resp.json().get("data", [])
-            if not cadence_data:
-                return jsonify({"success": False, "message": f"Cadence '{cadence_name}' not found"}), 404
-
-            cadence_id = cadence_data[0]["id"]
-
-        # Enroll contact into cadence
-        enroll_resp = requests.post(
-            "https://api.salesloft.com/v2/cadence_memberships.json",
-            json={
-                "cadence_membership": {
-                    "person_id": person_id,
-                    "cadence_id": cadence_id,
-                    "state": "active"
-                }
-            },
-            headers=headers
-        )
-
-        if enroll_resp.status_code >= 400:
-            return jsonify({
-                "success": False,
-                "message": "Failed to enroll contact in cadence",
-                "details": enroll_resp.text
-            }), 400
-
-        return jsonify({
-            "success": True,
-            "message": f"{first_name} {last_name} successfully added to cadence ID {cadence_id}."
-        })
-
-    except Exception as e:
+    if not all([first_name, last_name, email, memo, cadence_id]):
         return jsonify({
             "success": False,
-            "message": "Unhandled server error",
-            "error": str(e)
-        }), 500
+            "message": "Missing required fields."
+        }), 400
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
+    # Step 1: Check if person exists
+    resp = requests.get(
+        "https://api.salesloft.com/v2/people.json",
+        params={"email_address": email},
+        headers=HEADERS
+    )
+    resp_data = resp.json()
+    person_data = resp_data.get("data", [])
+
+    if person_data:
+        person_id = person_data[0]["id"]
+    else:
+        # Step 2: Create person
+        create_resp = requests.post(
+            "https://api.salesloft.com/v2/people.json",
+            json={
+                "first_name": first_name,
+                "last_name": last_name,
+                "email_address": email
+            },
+            headers=HEADERS
+        )
+
+        if create_resp.status_code >= 400:
+            return jsonify({
+                "success": False,
+                "message": "Failed to create contact",
+                "salesloft_response": create_resp.text
+            }), 400
+
+        person_id = create_resp.json()["data"]["id"]
+
+    # Step 3: Update memo custom field (ID 8014)
+    update_resp = requests.put(
+        f"https://api.salesloft.com/v2/people/{person_id}.json",
+        json={
+            "custom_fields": {
+                "8014": memo
+            }
+        },
+        headers=HEADERS
+    )
+
+    if update_resp.status_code >= 400:
+        return jsonify({
+            "success": False,
+            "message": "Failed to update contact",
+            "details": update_resp.text
+        }), 400
+
+    # Step 4: Enroll in cadence
+    enroll_resp = requests.post(
+        "https://api.salesloft.com/v2/cadence_memberships.json",
+        json={
+            "cadence_membership": {
+                "person_id": person_id,
+                "cadence_id": cadence_id
+            }
+        },
+        headers=HEADERS
+    )
+
+    if enroll_resp.status_code >= 400:
+        return jsonify({
+            "success": False,
+            "message": "Failed to enroll contact in cadence",
+            "details": enroll_resp.text
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "message": f"{first_name} {last_name} successfully added to cadence ID {cadence_id}."
+    })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
