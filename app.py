@@ -12,7 +12,7 @@ def add_to_cadence():
         first_name = data.get("first_name")
         last_name = data.get("last_name")
         email = data.get("email")
-        memo = data.get("custom email template")
+        memo = data.get("custom_email_template")  # FIXED: match OpenAPI field name
         cadence_name = data.get("cadence_name")
         cadence_id = data.get("cadence_id")
 
