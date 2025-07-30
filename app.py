@@ -29,7 +29,7 @@ if person_data["data"]:
     # Update existing contact with memo
     requests.put(
         f"https://api.salesloft.com/v2/people/{person_id}.json",
-        json={"custom_fields": {"memo": memo}},
+        json={"custom email text": {"custom email text": memo}},
         headers={"Authorization": f"Bearer {SALESLOFT_API_KEY}"}
     )
 else:
@@ -40,7 +40,7 @@ else:
             "first_name": first_name,
             "last_name": last_name,
             "email_address": email,
-            "custom_fields": {"memo": memo}
+            "custom email text": {"custom email text": memo}
         },
         headers={"Authorization": f"Bearer {SALESLOFT_API_KEY}"}
     )
