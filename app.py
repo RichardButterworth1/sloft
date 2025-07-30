@@ -37,11 +37,17 @@ def add_to_cadence():
 
         people_data = search_resp.json().get("data", [])
 
+        custom_fields_payload = {
+            "custom email template": memo,
+            "Owner_CRM_ID": "ad9a474d-36c4-eb11-bacc-002248801824",
+            "Account_CRM_ID": "ac663391-cd49-eb11-bb23-000d3a219bd5"
+        }
+
         if people_data:
             person_id = people_data[0]["id"]
             update_resp = requests.put(
                 f"https://api.salesloft.com/v2/people/{person_id}.json",
-                json={"custom_fields": {"custom email template": memo}},
+                json={"custom_fields": custom_fields_payload},
                 headers=headers
             )
             if update_resp.status_code >= 400:
@@ -53,7 +59,7 @@ def add_to_cadence():
                     "first_name": first_name,
                     "last_name": last_name,
                     "email_address": email,
-                    "custom_fields": {"custom email template": memo}
+                    "custom_fields": custom_fields_payload
                 },
                 headers=headers
             )
