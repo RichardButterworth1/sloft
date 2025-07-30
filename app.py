@@ -38,10 +38,33 @@ def add_to_cadence():
                 "first_name": first_name,
                 "last_name": last_name,
                 "email_address": email,
-                "custom_fields": {"memo": memo}
+                "custom_fields": {"custome email text": memo}
             },
-            headers={"Authorization": f"Bearer {SALESLOFT_API_KEY}"}
+            headers={
+                "Authorization": f"Bearer {SALESLOFT_API_KEY}"
+                "Content-Type": "application/json"
+            }
         )
+
+        # Check if the POST was successful
+        if create_resp.status_code >= 400:
+            return jsonify({
+                "success": False,
+                "message": f"Failed to create contact",
+                "salesloft_response": create_resp.json()
+            }), 400
+
+# Extract person ID
+person_id = create_resp.json().get("data", {}).get("id")
+
+if not person_id:
+    return jsonify({
+        "success": False,
+        "message": "No person ID returned after creation",
+        "salesloft_response": create_resp.json()
+    }), 400
+
+
         person_id = create_resp.json()["data"]["id"]
 
     cadence_resp = requests.get(
