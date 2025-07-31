@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import datetime
 
 app = Flask(__name__)
 
@@ -10,12 +11,16 @@ HEADERS = {
     "Authorization": f"Bearer {SALESLOFT_API_KEY}",
     "Content-Type": "application/json"
 }
+LOG_PATH = "/tmp/upsert-contact.log"
+
+def log_to_file(entry):
+    with open(LOG_PATH, "a") as f:
+        f.write(f"[{datetime.datetime.utcnow().isoformat()}] {entry}\n\n")
 
 @app.route('/upsert-contact', methods=['POST'])
 def upsert_contact():
     data = request.json or {}
 
-    # Extract and sanitize fields
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
     email = data.get("email", "").strip().lower()
@@ -24,14 +29,13 @@ def upsert_contact():
     account_crm_id = data.get("account_crm_id")
     phone = data.get("phone", "").strip()
 
-    # Validate required fields
-    if not all([first_name, last_name, email, memo]):
-        return jsonify({
-            "success": False,
-            "message": "Missing one or more required fields: first_name, last_name, email, custom_email_template"
-        }), 400
+    log_to_file(f"Received request data: {data}")
 
-    # Build contact payload
+    if not all([first_name, last_name, email, memo]):
+        error_msg = "Missing one or more required fields: first_name, last_name, email, custom_email_template"
+        log_to_file(error_msg)
+        return jsonify({"success": False, "message": error_msg}), 400
+
     contact_payload = {
         "first_name": first_name,
         "last_name": last_name,
@@ -45,12 +49,15 @@ def upsert_contact():
     if account_crm_id:
         contact_payload["account_crm_id"] = account_crm_id
 
-    # Step 1: Check if person exists
+    log_to_file(f"Prepared payload: {contact_payload}")
+
     search_resp = requests.get(
         "https://api.salesloft.com/v2/people.json",
         params={"email_address": email},
         headers=HEADERS
     )
+    log_to_file(f"Search response: {search_resp.status_code} {search_resp.text}")
+
     if search_resp.status_code != 200:
         return jsonify({
             "success": False,
@@ -61,7 +68,6 @@ def upsert_contact():
     search_data = search_resp.json()
     person_id = None
 
-    # Step 2: Update if exists, else create
     if search_data.get("data"):
         person_id = search_data["data"][0].get("id")
         update_resp = requests.put(
@@ -69,6 +75,8 @@ def upsert_contact():
             json=contact_payload,
             headers=HEADERS
         )
+        log_to_file(f"Update response: {update_resp.status_code} {update_resp.text}")
+
         if update_resp.status_code >= 400:
             return jsonify({
                 "success": False,
@@ -81,6 +89,8 @@ def upsert_contact():
             json=contact_payload,
             headers=HEADERS
         )
+        log_to_file(f"Create response: {create_resp.status_code} {create_resp.text}")
+
         if create_resp.status_code >= 400:
             return jsonify({
                 "success": False,
@@ -91,17 +101,20 @@ def upsert_contact():
         create_data = create_resp.json()
         person_id = create_data.get("data", {}).get("id")
 
-        # Fallback: if no ID returned, recheck
         if not person_id:
+            log_to_file("No person_id returned, attempting recheck...")
             recheck_resp = requests.get(
                 "https://api.salesloft.com/v2/people.json",
                 params={"email_address": email},
                 headers=HEADERS
             )
+            log_to_file(f"Recheck response: {recheck_resp.status_code} {recheck_resp.text}")
             if recheck_resp.status_code == 200:
                 recheck_data = recheck_resp.json().get("data", [])
                 if recheck_data:
                     person_id = recheck_data[0].get("id")
+
+    log_to_file(f"Final result: person_id = {person_id}")
 
     return jsonify({
         "success": True,
