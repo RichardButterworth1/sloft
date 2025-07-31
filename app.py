@@ -2,11 +2,12 @@ from flask import Flask, request, jsonify
 import requests
 import os
 import datetime
+import time
 
 app = Flask(__name__)
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
-CUSTOM_FIELD_ID = "custom email template"
+CUSTOM_FIELD_ID = "8014"
 HEADERS = {
     "Authorization": f"Bearer {SALESLOFT_API_KEY}",
     "Content-Type": "application/json"
@@ -91,18 +92,24 @@ def upsert_contact():
         )
         log_to_file(f"Create response: {create_resp.status_code} {create_resp.text}")
 
-        if create_resp.status_code >= 400:
+        if create_resp.status_code in [200, 201]:
+            create_data = create_resp.json()
+            person_id = create_data.get("data", {}).get("id")
+            if not person_id:
+                log_to_file("Contact created but no ID returned. Checking by email...")
+        elif create_resp.status_code == 202:
+            log_to_file("202 Accepted received. Delaying to confirm...")
+            time.sleep(5)
+        else:
             return jsonify({
                 "success": False,
                 "message": "Failed to create contact",
                 "details": create_resp.text
-            }), 400
+            }), create_resp.status_code
 
-        create_data = create_resp.json()
-        person_id = create_data.get("data", {}).get("id")
-
+        # Recheck after potential 202 or missing ID
         if not person_id:
-            log_to_file("No person_id returned, attempting recheck...")
+            time.sleep(2)
             recheck_resp = requests.get(
                 "https://api.salesloft.com/v2/people.json",
                 params={"email_address": email},
@@ -117,8 +124,8 @@ def upsert_contact():
     log_to_file(f"Final result: person_id = {person_id}")
 
     return jsonify({
-        "success": True,
-        "message": f"Contact '{first_name} {last_name}' processed successfully.",
+        "success": bool(person_id),
+        "message": f"Contact '{first_name} {last_name}' processed.",
         "person_id": person_id,
         "email": email,
         "created_payload": contact_payload
