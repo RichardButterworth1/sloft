@@ -107,7 +107,7 @@ def upsert_and_enroll():
 
     enroll_payload = {
         "cadence_id": CADENCE_ID,
-        "recipient_id": contact_id
+        "person_id": contact_id  # Updated here
     }
 
     log(f"Enrollment payload: {enroll_payload}")
