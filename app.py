@@ -11,7 +11,6 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-
 @app.route('/upsert-contact', methods=['POST'])
 def upsert_contact():
     data = request.json or {}
@@ -39,7 +38,6 @@ def upsert_contact():
         "email_address": email,
         "custom_fields": {CUSTOM_FIELD_ID: memo}
     }
-
     if phone:
         contact_payload["phone"] = phone
     if owner_crm_id:
@@ -53,7 +51,6 @@ def upsert_contact():
         params={"email_address": email},
         headers=HEADERS
     )
-
     if search_resp.status_code != 200:
         return jsonify({
             "success": False,
@@ -91,26 +88,26 @@ def upsert_contact():
                 "details": create_resp.text
             }), 400
 
-        # Try to get ID from creation response
         create_data = create_resp.json()
         person_id = create_data.get("data", {}).get("id")
 
-        # Fallback: re-query if ID was not returned
+        # Fallback: if no ID returned, recheck
         if not person_id:
             recheck_resp = requests.get(
                 "https://api.salesloft.com/v2/people.json",
                 params={"email_address": email},
                 headers=HEADERS
             )
-            if recheck_resp.status_code == 200 and recheck_resp.json().get("data"):
-                person_id = recheck_resp.json()["data"][0].get("id")
+            if recheck_resp.status_code == 200:
+                recheck_data = recheck_resp.json().get("data", [])
+                if recheck_data:
+                    person_id = recheck_data[0].get("id")
 
     return jsonify({
         "success": True,
         "message": f"Contact '{first_name} {last_name}' processed successfully.",
         "person_id": person_id
     })
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
