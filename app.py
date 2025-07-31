@@ -12,7 +12,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 CADENCE_ID = 102094  # Hardcoded cadence ID
-CUSTOM_FIELD_NAME = "custom email template"  # Exact field name as seen in Salesloft
+CUSTOM_FIELD_LABEL = "custom email template"  # As displayed in Salesloft UI
 
 def log(message):
     timestamp = datetime.datetime.utcnow().isoformat()
@@ -24,8 +24,8 @@ def simple_upsert():
     data = request.json or {}
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
-    email = data.get("email", "").strip().lower()
-    custom_text = data.get("custom_email_template", "").strip()
+    email = data.get("email_address", "").strip().lower()
+    website = data.get("person_company_website", "http://example.com")
 
     if not (first_name and last_name and email):
         return jsonify({"success": False, "message": "Missing required fields"}), 400
@@ -34,11 +34,13 @@ def simple_upsert():
         "first_name": first_name,
         "last_name": last_name,
         "email_address": email,
-        "person_company_website": "http://example.com"
+        "person_company_website": website
     }
 
-    if custom_text:
-        payload["custom_fields"] = {CUSTOM_FIELD_NAME: custom_text}
+    # Include custom fields if provided
+    custom_fields = data.get("custom_fields", {})
+    if isinstance(custom_fields, dict) and CUSTOM_FIELD_LABEL in custom_fields:
+        payload["custom_fields"] = {CUSTOM_FIELD_LABEL: custom_fields[CUSTOM_FIELD_LABEL]}
 
     log(f"Attempting to create contact with payload: {payload}")
 
@@ -71,8 +73,8 @@ def upsert_and_enroll():
     data = request.json or {}
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
-    email = data.get("email", "").strip().lower()
-    custom_text = data.get("custom_email_template", "").strip()
+    email = data.get("email_address", "").strip().lower()
+    website = data.get("person_company_website", "http://example.com")
 
     if not (first_name and last_name and email):
         return jsonify({"success": False, "message": "Missing required fields"}), 400
@@ -81,11 +83,13 @@ def upsert_and_enroll():
         "first_name": first_name,
         "last_name": last_name,
         "email_address": email,
-        "person_company_website": "http://example.com"
+        "person_company_website": website
     }
 
-    if custom_text:
-        payload["custom_fields"] = {CUSTOM_FIELD_NAME: custom_text}
+    # Handle custom fields
+    custom_fields = data.get("custom_fields", {})
+    if isinstance(custom_fields, dict) and CUSTOM_FIELD_LABEL in custom_fields:
+        payload["custom_fields"] = {CUSTOM_FIELD_LABEL: custom_fields[CUSTOM_FIELD_LABEL]}
 
     log(f"Upsert-and-enroll payload: {payload}")
 
