@@ -8,11 +8,11 @@ LOG_FILE = "/tmp/simple-contact.log"
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
 HEADERS = {
-    "Authorization": f"Bearer " + SALESLOFT_API_KEY,
+    "Authorization": f"Bearer {SALESLOFT_API_KEY}",
     "Content-Type": "application/json"
 }
 CADENCE_ID = 102094  # Hardcoded cadence ID
-CUSTOM_FIELD_NAME = "custom email template"  # Must match Salesloft field label exactly
+CUSTOM_FIELD_NAME = "custom email template"  # Exact field name as seen in Salesloft
 
 def log(message):
     timestamp = datetime.datetime.utcnow().isoformat()
@@ -26,7 +26,7 @@ def simple_upsert():
     last_name = data.get("last_name", "").strip()
     email = data.get("email", "").strip().lower()
     custom_text = data.get("custom_email_template", "").strip()
-    
+
     if not (first_name and last_name and email):
         return jsonify({"success": False, "message": "Missing required fields"}), 400
 
