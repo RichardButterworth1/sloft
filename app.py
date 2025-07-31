@@ -14,7 +14,7 @@ HEADERS = {
 LOG_PATH = "/tmp/upsert-contact.log"
 
 def log_to_file(entry):
-    with open(LOG_PATH, "a") as f:
+    with open(LOG_PATH, "a", encoding="utf-8") as f:
         f.write(f"[{datetime.datetime.utcnow().isoformat()}] {entry}\n\n")
 
 @app.route('/upsert-contact', methods=['POST'])
@@ -127,7 +127,7 @@ def upsert_contact():
 @app.route('/logs', methods=['GET'])
 def view_logs():
     try:
-        with open(LOG_PATH, "r") as f:
+        with open(LOG_PATH, "r", encoding="utf-8") as f:
             content = f.read()
         return f"<pre>{content}</pre>", 200
     except FileNotFoundError:
