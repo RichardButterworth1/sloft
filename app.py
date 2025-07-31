@@ -6,7 +6,7 @@ import datetime
 app = Flask(__name__)
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
-CUSTOM_FIELD_ID = "custom email template"  # Must match the exact Salesloft field name
+CUSTOM_FIELD_ID = "custom email template"
 HEADERS = {
     "Authorization": f"Bearer {SALESLOFT_API_KEY}",
     "Content-Type": "application/json"
@@ -123,6 +123,15 @@ def upsert_contact():
         "email": email,
         "created_payload": contact_payload
     })
+
+@app.route('/logs', methods=['GET'])
+def view_logs():
+    try:
+        with open(LOG_PATH, "r") as f:
+            content = f.read()
+        return f"<pre>{content}</pre>", 200
+    except FileNotFoundError:
+        return "Log file not found.", 404
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 10000)))
