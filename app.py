@@ -7,7 +7,7 @@ import time
 app = Flask(__name__)
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
-CUSTOM_FIELD_ID = "8014"
+CUSTOM_FIELD_ID = "custom_field_8014"
 HEADERS = {
     "Authorization": f"Bearer {SALESLOFT_API_KEY}",
     "Content-Type": "application/json"
@@ -27,7 +27,7 @@ def upsert_contact():
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
     email = data.get("email", "").strip().lower()
-    memo = data.get("8014", "").strip()
+    memo = data.get("custom_field_8104", "").strip()
     owner_crm_id = data.get("owner_crm_id")
     account_crm_id = data.get("account_crm_id")
     phone = data.get("phone", "").strip()
