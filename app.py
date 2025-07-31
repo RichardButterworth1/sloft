@@ -5,66 +5,72 @@ import os
 app = Flask(__name__)
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
-CUSTOM_FIELD_ID = "custom email template"
+CUSTOM_FIELD_ID = "custom email template"  # Exact label in Salesloft
+HEADERS = {
+    "Authorization": f"Bearer {SALESLOFT_API_KEY}",
+    "Content-Type": "application/json"
+}
+
 
 @app.route('/upsert-contact', methods=['POST'])
 def upsert_contact():
-    data = request.json
+    data = request.json or {}
 
-    first_name = data.get("first_name")
-    last_name = data.get("last_name")
-    email = data.get("email")
-    memo = data.get("custom_email_template")
+    # Extract and sanitize fields
+    first_name = data.get("first_name", "").strip()
+    last_name = data.get("last_name", "").strip()
+    email = data.get("email", "").strip().lower()
+    memo = data.get("custom_email_template", "").strip()
     owner_crm_id = data.get("owner_crm_id")
     account_crm_id = data.get("account_crm_id")
-    phone = data.get("phone")
+    phone = data.get("phone", "").strip()
 
+    # Validate required fields
     if not all([first_name, last_name, email, memo]):
         return jsonify({
             "success": False,
-            "message": "Missing required fields for contact creation."
+            "message": "Missing one or more required fields: first_name, last_name, email, custom_email_template"
         }), 400
 
-    headers = {
-        "Authorization": f"Bearer {SALESLOFT_API_KEY}",
-        "Content-Type": "application/json"
+    # Build contact payload
+    contact_payload = {
+        "first_name": first_name,
+        "last_name": last_name,
+        "email_address": email,
+        "custom_fields": {CUSTOM_FIELD_ID: memo}
     }
 
-    # Step 1: Search for contact by email
+    if phone:
+        contact_payload["phone"] = phone
+    if owner_crm_id:
+        contact_payload["owner_crm_id"] = owner_crm_id
+    if account_crm_id:
+        contact_payload["account_crm_id"] = account_crm_id
+
+    # Step 1: Check if person exists
     search_resp = requests.get(
         "https://api.salesloft.com/v2/people.json",
         params={"email_address": email},
-        headers=headers
+        headers=HEADERS
     )
+
     if search_resp.status_code != 200:
         return jsonify({
             "success": False,
-            "message": "Failed to search for contact",
+            "message": "Failed to search for existing contact",
             "details": search_resp.text
         }), 400
 
     search_data = search_resp.json()
     person_id = None
 
-    contact_payload = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "email_address": email,
-        "custom_fields": {
-            CUSTOM_FIELD_ID: memo
-        },
-        "owner_crm_id": owner_crm_id,
-        "account_crm_id": account_crm_id,
-        "phone": phone
-    }
-
+    # Step 2: Update if exists, else create
     if search_data.get("data"):
-        # Update existing contact
         person_id = search_data["data"][0].get("id")
         update_resp = requests.put(
             f"https://api.salesloft.com/v2/people/{person_id}.json",
             json=contact_payload,
-            headers=headers
+            headers=HEADERS
         )
         if update_resp.status_code >= 400:
             return jsonify({
@@ -73,11 +79,10 @@ def upsert_contact():
                 "details": update_resp.text
             }), 400
     else:
-        # Create new contact
         create_resp = requests.post(
             "https://api.salesloft.com/v2/people.json",
             json=contact_payload,
-            headers=headers
+            headers=HEADERS
         )
         if create_resp.status_code >= 400:
             return jsonify({
@@ -87,6 +92,7 @@ def upsert_contact():
             }), 400
         person_id = create_resp.json().get("data", {}).get("id")
 
+    # Final confirmation
     return jsonify({
         "success": True,
         "message": f"Contact '{first_name} {last_name}' processed successfully.",
