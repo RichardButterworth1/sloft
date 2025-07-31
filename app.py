@@ -124,9 +124,9 @@ def create_contact_and_enroll():
     if website:
         contact_body["person_company_website"] = website
     if custom_email_template is not None:
-        contact_body["custom_fields1"] = {"custom email template": custom_email_template}
+        contact_body["8014"] = {"custom email template": custom_email_template}
     if custom_email_subject is not None:
-        contact_body["custom_fields2"] = {"custom email subject": custom_email_subject}
+        contact_body["8023"] = {"custom email subject": custom_email_subject}
 
     person_url = f"{SALESLOFT_API_BASE}/v2/people.json"
     try:
