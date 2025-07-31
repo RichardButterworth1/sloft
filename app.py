@@ -1,157 +1,159 @@
-from flask import Flask, request, jsonify
-import requests
+#!/usr/bin/env python3
+"""
+app.py — Lightweight FastAPI service to:
+  1. Create a Salesloft contact with a custom field ("custom email template")
+  2. Enroll that contact into a cadence
+
+Expected environment variables (for Render.com you can set these in the dashboard):
+  - SALESLOFT_API_KEY : Your Salesloft bearer token (e.g. v2_ak_...)
+  - (Optional) SALESLOFT_API_BASE : Defaults to https://api.salesloft.com
+
+You can also override the API key per-request by supplying header:
+  X-Salesloft-Api-Key: <your key>
+"""
+
 import os
-import datetime
+from typing import Optional
 
-app = Flask(__name__)
-LOG_FILE = "/tmp/simple-contact.log"
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, EmailStr, AnyUrl, Field
+import requests
+from fastapi.middleware.cors import CORSMiddleware
 
-SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
-HEADERS = {
-    "Authorization": f"Bearer {SALESLOFT_API_KEY}",
-    "Content-Type": "application/json"
-}
-CADENCE_ID = 102094
-CUSTOM_FIELD_LABEL = "custom email template"  # Exact UI label
+# ----------------------
+# Models
+# ----------------------
+class ContactPayload(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    website: Optional[AnyUrl] = None
+    custom_email_template: Optional[str] = None
+    cadence_id: int = Field(..., gt=0, description="ID of cadence to enroll the contact into")
 
-def log(message):
-    timestamp = datetime.datetime.utcnow().isoformat()
-    with open(LOG_FILE, "a") as f:
-        f.write(f"[{timestamp}] {message}\n")
 
-@app.route("/simple-upsert", methods=["POST"])
-def simple_upsert():
-    data = request.json or {}
-    first_name = data.get("first_name", "").strip()
-    last_name = data.get("last_name", "").strip()
-    email = data.get("email_address", "").strip().lower()
-    website = data.get("person_company_website", "http://example.com")
+# ----------------------
+# App setup
+# ----------------------
+app = FastAPI(title="Salesloft Contact + Cadence Enroller")
 
-    if not (first_name and last_name and email):
-        return jsonify({"success": False, "message": "Missing required fields"}), 400
+# Optional: enable CORS if needed (adjust origins as appropriate)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # in production, lock this down to your frontend origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    payload = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "email_address": email,
-        "person_company_website": website
+SALESLOFT_API_BASE = os.environ.get("SALESLOFT_API_BASE", "https://api.salesloft.com")
+GLOBAL_API_KEY = os.environ.get("SALESLOFT_API_KEY")  # fallback if not provided per-request
+
+# ----------------------
+# Helpers
+# ----------------------
+def get_auth_headers(api_key: str) -> dict:
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
     }
 
-    # Support custom_fields (dict), passed as label-value
-    custom_fields = data.get("custom_fields")
-    if isinstance(custom_fields, dict):
-        payload["custom_fields"] = custom_fields
 
-    log(f"Attempting to create contact with payload: {payload}")
+# ----------------------
+# Endpoints
+# ----------------------
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "salesloft-contact-enroller"}
 
-    response = requests.post(
-        "https://api.salesloft.com/v2/people.json",
-        headers=HEADERS,
-        json=payload
-    )
 
-    log(f"Salesloft response: {response.status_code} {response.text}")
+@app.post("/create_contact_and_enroll")
+def create_contact_and_enroll(payload: ContactPayload, request: Request):
+    """
+    Expects JSON body with fields:
+      first_name, last_name, email, cadence_id
+    Optional:
+      website, custom_email_template
 
-    if response.status_code in [200, 201]:
-        contact_data = response.json().get("data", {})
-        return jsonify({
-            "success": True,
-            "message": "Contact created.",
-            "person_id": contact_data.get("id"),
-            "raw_response": contact_data
-        }), 200
-    else:
-        return jsonify({
-            "success": False,
-            "message": "Failed to create contact.",
-            "status_code": response.status_code,
-            "error": response.text
-        }), response.status_code
+    Returns combined response of contact creation and cadence enrollment.
+    """
+    # Determine API key (env var or per-request override)
+    api_key = GLOBAL_API_KEY or request.headers.get("X-Salesloft-Api-Key")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Salesloft API key not provided via environment or header.")
 
-@app.route("/simple-upsert-and-enroll", methods=["POST"])
-def upsert_and_enroll():
-    data = request.json or {}
-    first_name = data.get("first_name", "").strip()
-    last_name = data.get("last_name", "").strip()
-    email = data.get("email_address", "").strip().lower()
-    website = data.get("person_company_website", "http://example.com")
+    headers = get_auth_headers(api_key)
 
-    if not (first_name and last_name and email):
-        return jsonify({"success": False, "message": "Missing required fields"}), 400
-
-    payload = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "email_address": email,
-        "person_company_website": website
+    # Build contact creation payload
+    contact_body = {
+        "first_name": payload.first_name,
+        "last_name": payload.last_name,
+        "email_address": payload.email,
     }
+    if payload.website:
+        contact_body["person_company_website"] = str(payload.website)
+    if payload.custom_email_template is not None:
+        contact_body["custom_fields"] = {"custom email template": payload.custom_email_template}
 
-    # Support custom_fields (dict), passed as label-value
-    custom_fields = data.get("custom_fields")
-    if isinstance(custom_fields, dict):
-        payload["custom_fields"] = custom_fields
-
-    log(f"Upsert-and-enroll payload: {payload}")
-
-    response = requests.post(
-        "https://api.salesloft.com/v2/people.json",
-        headers=HEADERS,
-        json=payload
-    )
-
-    log(f"Create contact response: {response.status_code} {response.text}")
-
-    if response.status_code not in [200, 201]:
-        return jsonify({
-            "success": False,
-            "message": "Failed to create contact.",
-            "details": response.text
-        }), response.status_code
-
-    contact_id = response.json().get("data", {}).get("id")
-
-    if not contact_id:
-        return jsonify({
-            "success": False,
-            "message": "Contact creation succeeded but no ID returned.",
-            "details": response.text
-        }), 500
-
-    enroll_payload = {
-        "cadence_id": CADENCE_ID,
-        "person_id": contact_id
-    }
-
-    log(f"Enrollment payload: {enroll_payload}")
-
-    enroll_resp = requests.post(
-        "https://api.salesloft.com/v2/cadence_memberships.json",
-        headers=HEADERS,
-        json=enroll_payload
-    )
-
-    log(f"Enroll response: {enroll_resp.status_code} {enroll_resp.text}")
-
-    if enroll_resp.status_code not in [200, 201]:
-        return jsonify({
-            "success": False,
-            "message": "Contact created but failed to enroll in cadence.",
-            "details": enroll_resp.text
-        }), enroll_resp.status_code
-
-    return jsonify({
-        "success": True,
-        "message": "Contact created and enrolled in cadence.",
-        "person_id": contact_id
-    })
-
-@app.route("/logs", methods=["GET"])
-def simple_log():
+    person_url = f"{SALESLOFT_API_BASE}/v2/people.json"
     try:
-        with open(LOG_FILE, "r") as f:
-            return f"<pre>{f.read()}</pre>"
-    except FileNotFoundError:
-        return "Log file not found.", 404
+        resp = requests.post(person_url, headers=headers, json=contact_body, timeout=15)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Error contacting Salesloft person API: {str(e)}")
 
+    if not resp.ok:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail={
+                "message": "Failed to create person in Salesloft.",
+                "response_text": resp.text,
+                "status_code": resp.status_code,
+            },
+        )
+
+    person_data = resp.json()
+    person_id = None
+    try:
+        person_id = person_data["data"]["id"]
+    except (KeyError, TypeError):
+        raise HTTPException(status_code=500, detail=f"Unexpected person creation response shape: {person_data}")
+
+    if not person_id:
+        raise HTTPException(status_code=500, detail="Salesloft returned empty person ID.")
+
+    # Enroll in cadence
+    cadence_url = f"{SALESLOFT_API_BASE}/v2/cadence_memberships.json"
+    enroll_body = {"person_id": person_id, "cadence_id": payload.cadence_id}
+
+    try:
+        enroll_resp = requests.post(cadence_url, headers=headers, json=enroll_body, timeout=15)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Error contacting Salesloft cadence API: {str(e)}")
+
+    if not enroll_resp.ok:
+        # Surface both creation and failure to enroll
+        raise HTTPException(
+            status_code=enroll_resp.status_code,
+            detail={
+                "message": "Person created but failed to enroll in cadence.",
+                "person": person_data,
+                "enroll_response_text": enroll_resp.text,
+                "status_code": enroll_resp.status_code,
+            },
+        )
+
+    enrollment_data = enroll_resp.json()
+
+    return {
+        "contact_creation": person_data,
+        "cadence_enrollment": enrollment_data,
+    }
+
+
+# ----------------------
+# Entry point for running locally (Render will typically invoke via `gunicorn app:app` or similar)
+# ----------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+    import uvicorn
+
+    uvicorn.run("app:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)), reload=False)
