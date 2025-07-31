@@ -8,10 +8,11 @@ LOG_FILE = "/tmp/simple-contact.log"
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
 HEADERS = {
-    "Authorization": f"Bearer {SALESLOFT_API_KEY}",
+    "Authorization": f"Bearer " + SALESLOFT_API_KEY,
     "Content-Type": "application/json"
 }
 CADENCE_ID = 102094  # Hardcoded cadence ID
+CUSTOM_FIELD_NAME = "custom email template"  # Must match Salesloft field label exactly
 
 def log(message):
     timestamp = datetime.datetime.utcnow().isoformat()
@@ -24,7 +25,8 @@ def simple_upsert():
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
     email = data.get("email", "").strip().lower()
-
+    custom_text = data.get("custom_email_template", "").strip()
+    
     if not (first_name and last_name and email):
         return jsonify({"success": False, "message": "Missing required fields"}), 400
 
@@ -34,6 +36,9 @@ def simple_upsert():
         "email_address": email,
         "person_company_website": "http://example.com"
     }
+
+    if custom_text:
+        payload["custom_fields"] = {CUSTOM_FIELD_NAME: custom_text}
 
     log(f"Attempting to create contact with payload: {payload}")
 
@@ -67,6 +72,7 @@ def upsert_and_enroll():
     first_name = data.get("first_name", "").strip()
     last_name = data.get("last_name", "").strip()
     email = data.get("email", "").strip().lower()
+    custom_text = data.get("custom_email_template", "").strip()
 
     if not (first_name and last_name and email):
         return jsonify({"success": False, "message": "Missing required fields"}), 400
@@ -77,6 +83,9 @@ def upsert_and_enroll():
         "email_address": email,
         "person_company_website": "http://example.com"
     }
+
+    if custom_text:
+        payload["custom_fields"] = {CUSTOM_FIELD_NAME: custom_text}
 
     log(f"Upsert-and-enroll payload: {payload}")
 
@@ -98,7 +107,6 @@ def upsert_and_enroll():
     contact_id = response.json().get("data", {}).get("id")
 
     if not contact_id:
-        log("No contact ID returned after contact creation.")
         return jsonify({
             "success": False,
             "message": "Contact creation succeeded but no ID returned.",
@@ -107,7 +115,7 @@ def upsert_and_enroll():
 
     enroll_payload = {
         "cadence_id": CADENCE_ID,
-        "person_id": contact_id  # Updated here
+        "person_id": contact_id
     }
 
     log(f"Enrollment payload: {enroll_payload}")
