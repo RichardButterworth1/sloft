@@ -5,7 +5,7 @@ import os
 app = Flask(__name__)
 
 SALESLOFT_API_KEY = os.getenv("SALESLOFT_API_KEY")
-CUSTOM_FIELD_ID = "custom email template"  # Exact label in Salesloft
+CUSTOM_FIELD_ID = "custom email template"  # Must match the exact Salesloft field name
 HEADERS = {
     "Authorization": f"Bearer {SALESLOFT_API_KEY}",
     "Content-Type": "application/json"
@@ -106,7 +106,9 @@ def upsert_contact():
     return jsonify({
         "success": True,
         "message": f"Contact '{first_name} {last_name}' processed successfully.",
-        "person_id": person_id
+        "person_id": person_id,
+        "email": email,
+        "created_payload": contact_payload
     })
 
 if __name__ == '__main__':
