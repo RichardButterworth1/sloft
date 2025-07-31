@@ -130,7 +130,7 @@ def upsert_and_enroll():
         "person_id": contact_id
     })
 
-@app.route("/simple-log", methods=["GET"])
+@app.route("/logs", methods=["GET"])
 def simple_log():
     try:
         with open(LOG_FILE, "r") as f:
