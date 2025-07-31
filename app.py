@@ -98,6 +98,7 @@ def upsert_and_enroll():
     contact_id = response.json().get("data", {}).get("id")
 
     if not contact_id:
+        log("No contact ID returned after contact creation.")
         return jsonify({
             "success": False,
             "message": "Contact creation succeeded but no ID returned.",
@@ -108,6 +109,8 @@ def upsert_and_enroll():
         "cadence_id": CADENCE_ID,
         "recipient_id": contact_id
     }
+
+    log(f"Enrollment payload: {enroll_payload}")
 
     enroll_resp = requests.post(
         "https://api.salesloft.com/v2/cadence_memberships.json",
