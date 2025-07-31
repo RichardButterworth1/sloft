@@ -107,6 +107,7 @@ def create_contact_and_enroll():
 
     website = data.get("website")
     custom_email_template = data.get("custom_email_template")
+    custom_email_subject = data.get("custom_email_subject")
 
     api_key = GLOBAL_API_KEY or request.headers.get("X-Salesloft-Api-Key")
     if not api_key:
@@ -124,6 +125,8 @@ def create_contact_and_enroll():
         contact_body["person_company_website"] = website
     if custom_email_template is not None:
         contact_body["custom_fields"] = {"custom email template": custom_email_template}
+    if custom_email_subject is not None:
+        contact_body["custom_fields"] = {"custom email subject": custom_email_subject}
 
     person_url = f"{SALESLOFT_API_BASE}/v2/people.json"
     try:
