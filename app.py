@@ -90,9 +90,21 @@ def upsert_contact():
                 "message": "Failed to create contact",
                 "details": create_resp.text
             }), 400
-        person_id = create_resp.json().get("data", {}).get("id")
 
-    # Final confirmation
+        # Try to get ID from creation response
+        create_data = create_resp.json()
+        person_id = create_data.get("data", {}).get("id")
+
+        # Fallback: re-query if ID was not returned
+        if not person_id:
+            recheck_resp = requests.get(
+                "https://api.salesloft.com/v2/people.json",
+                params={"email_address": email},
+                headers=HEADERS
+            )
+            if recheck_resp.status_code == 200 and recheck_resp.json().get("data"):
+                person_id = recheck_resp.json()["data"][0].get("id")
+
     return jsonify({
         "success": True,
         "message": f"Contact '{first_name} {last_name}' processed successfully.",
