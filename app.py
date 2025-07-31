@@ -11,8 +11,8 @@ HEADERS = {
     "Authorization": f"Bearer {SALESLOFT_API_KEY}",
     "Content-Type": "application/json"
 }
-CADENCE_ID = 102094  # Hardcoded cadence ID
-CUSTOM_FIELD_LABEL = "custom email template"  # As displayed in Salesloft UI
+CADENCE_ID = 102094
+CUSTOM_FIELD_LABEL = "custom email template"  # Exact UI label
 
 def log(message):
     timestamp = datetime.datetime.utcnow().isoformat()
@@ -37,10 +37,11 @@ def simple_upsert():
         "person_company_website": website
     }
 
-    # Include custom fields if provided
-    custom_email_template = data.get("custom_email_template")
-    if custom_email_template:
-    payload["custom_fields"] = {CUSTOM_FIELD_LABEL: custom_email_template}
+    # Support custom_fields (dict), passed as label-value
+    custom_fields = data.get("custom_fields")
+    if isinstance(custom_fields, dict):
+        payload["custom_fields"] = custom_fields
+
     log(f"Attempting to create contact with payload: {payload}")
 
     response = requests.post(
@@ -85,10 +86,10 @@ def upsert_and_enroll():
         "person_company_website": website
     }
 
-    # Handle custom fields
-    custom_fields = data.get("custom_fields", {})
-    if isinstance(custom_fields, dict) and CUSTOM_FIELD_LABEL in custom_fields:
-        payload["custom_fields"] = {CUSTOM_FIELD_LABEL: custom_fields[CUSTOM_FIELD_LABEL]}
+    # Support custom_fields (dict), passed as label-value
+    custom_fields = data.get("custom_fields")
+    if isinstance(custom_fields, dict):
+        payload["custom_fields"] = custom_fields
 
     log(f"Upsert-and-enroll payload: {payload}")
 
